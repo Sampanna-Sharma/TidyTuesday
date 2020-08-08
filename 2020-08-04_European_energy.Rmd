@@ -1,0 +1,104 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+---
+title: "European energy"
+author: "Sampanna Sharma"
+output: html_notebook
+---
+
+## Setting Up Helper function (source R cookbook)
+```{r}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+theme_light()
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-08-04")
+tt
+```
+
+## Cleaning
+```{r}
+energy_types <- tt$energy_types
+energy_types <- energy_types %>%
+                gather(year,value,`2016`:`2018`)
+```
+
+## Top 5 countries with high energy production
+```{r}
+energy_types %>% 
+  filter(year == "2018") %>% 
+  group_by(country) %>% 
+  summarise(total = sum(value)) %>%
+  ungroup() %>% 
+  arrange(desc(total)) %>% 
+  head(5)
+```
+## Plot
+```{r fig.height=15}
+top_countries = c('DE','FR','UK','TR','IT')
+types = unique(energy_types$type)
+types <- types[-8]
+p = vector("list", length(top_countries))
+for(i in 1:7){
+p[[i]] <- energy_types %>% 
+  filter(country %in% top_countries) %>%
+  filter(type == types[i]) %>% 
+  ggplot(aes(x = year,y = value,fill = country))+
+  geom_col()+
+  scale_y_continuous(labels = scales::comma)+
+  facet_wrap(~country,ncol = 5)+ 
+  theme_minimal()+
+  theme(
+    strip.background = element_blank(),
+    strip.text.x = element_blank()
+  )
+}
+  
+multiplot(p[1],p[2], p[3], p[4],p[5],p[6],p[7])
+```
+

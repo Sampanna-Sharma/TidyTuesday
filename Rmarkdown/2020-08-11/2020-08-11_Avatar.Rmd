@@ -1,0 +1,150 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+---
+title: "Avatar"
+author: "Sampanna Sharma"
+output: html_notebook
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+library(scales)
+library(tidytext)
+library(stringr)
+library(ggraph)
+library(tidygraph)
+#library(waffle)
+theme_set(theme_light())
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-08-11")
+#tt
+```
+
+## Cleaning
+```{r}
+avatar <- tt$avatar
+```
+
+```{r}
+avatar %>%
+  select(book,book_num,writer,director,chapter_num,imdb_rating) %>% 
+  group_by(book,chapter_num) %>% 
+  slice(1) %>% 
+  ungroup() %>%
+  group_by(book) %>% 
+  arrange(book_num,chapter_num) %>% 
+  mutate(x = 0 : (n()-1),
+         z = x%/%11,
+         x = x %% 11,
+         y = case_when(z==0 ~1, z==1 ~ 0),
+         book = paste("Book",book_num,":",book),
+         chapter_num = case_when(chapter_num<10 ~ paste(0,chapter_num,sep = ""),
+                                 chapter_num >=10 ~ paste(chapter_num))) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = x, y = y, fill = imdb_rating))+
+  geom_tile(color = "black",width=0.9, height=0.9)+
+  geom_text(aes(label = imdb_rating))+
+  geom_text(aes(label = chapter_num),size = 2.5,hjust=-0.8,vjust=2.5)+
+  facet_wrap(~book,ncol = 1,strip.position = "left")+
+  scale_fill_gradientn(colours = c("#FFFFFF", "#FFC798", "#D6533F"))+
+  labs(title = "IMDB ratings of Avatar: The Last Air Bender")+
+  guides(fill = FALSE)+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        strip.text.x = element_text(colour = "white", face = "bold"),
+        strip.background = element_rect(colour = "black", fill = "#87433A"),
+        panel.spacing = unit(0.5, "lines"))+
+  coord_equal()
+```
+
+```{r}
+
+#avatar %>% 
+#  select(book_num,book,chapter_num,character) %>% 
+#  filter(character != "Scene Description") %>%
+#  group_by(book_num) %>% 
+#  count(character) %>%
+#  top_n(8,n) %>% 
+#  ungroup() %>% 
+#  mutate(character = reorder_within(character,n,book_num)) %>% 
+#  ggplot(aes(x = character, y = n))+
+#  geom_col()+
+#  scale_x_reordered()+
+#  scale_y_continuous(expand = c(0,0)) +
+#  coord_flip()+
+#  facet_wrap(~book_num,scales = "free_y")
+```
+
+```{r}
+#data(stop_words)
+#nrc_sent <- get_sentiments("nrc")
+#main_charactors <- c("Aang","Katara","Sokka","Zuko","Iroh","Toph")
+#avatar %>% 
+#  select(book_num,chapter_num,character,character_words) %>% 
+#  filter(character %in% main_charactors) %>% 
+#  unnest_tokens(words,character_words) %>% 
+#  anti_join(stop_words,by = c("words" = "word")) %>% 
+#  inner_join(nrc_sent,by = c("words" = "word")) %>% 
+#  group_by(character) %>% 
+#  count(sentiment) %>% 
+#  mutate(percet = n/sum(n) * 100) %>% 
+#  ungroup() %>% 
+#  ggplot(aes(x = character, y = percet,fill = sentiment))+
+#  geom_col()+
+#  coord_flip()
+```
+
+```{r}
+
+charactor <- avatar %>% 
+              filter(character != "Scene Description") %>% 
+              count(character) %>% 
+              arrange(desc(n)) %>% 
+              head(13) %>% 
+              pull(1)
+
+charactor <- c(charactor,"Momo","Avatar","Uncle","Appa")
+  
+
+avatar %>% 
+  select(book_num,chapter_num,character,character_words) %>% 
+  filter(character %in% charactor) %>% 
+  unnest_tokens(words,character_words) %>% 
+  anti_join(stop_words,by = c("words" = "word")) %>% 
+  filter(str_to_title(words) %in% charactor) %>% 
+  mutate(words = str_to_title(words),
+      character = if_else((character == "Aang" | character == "Avatar"),"Aang (Avatar)",                                 if_else((character == "Iroh" | character == "Uncle"),"Iroh (Uncle)", character)),
+      words = if_else((words == "Aang" | words == "Avatar"),"Aang (Avatar)",                                         if_else((words == "Iroh" | words == "Uncle"),"Iroh (Uncle)", words)))%>%
+  count(character,words) %>% 
+  as_tbl_graph() %>% 
+  ggraph(layout = 'kk') +
+  geom_edge_fan(aes(alpha = n,edge_width=n),arrow = arrow(length = unit(4, 'mm')), 
+                  end_cap = circle(2, 'mm'), color = "#D6533F",show.legend = FALSE, strength = 2) +
+  geom_node_point(size = 3, color = "#000000") +
+  geom_node_text(aes(label = name,size=4), repel = TRUE, color = "#444444",show.legend = FALSE) +
+  scale_edge_width(range = c(0.4,2.5))+
+  scale_edge_alpha(range = c(0.2,1))+
+      labs(title = "Characters referring to each other by names")+
+  theme_graph(background = "#FFFFFF")
+
+```
+
+
+
+
+

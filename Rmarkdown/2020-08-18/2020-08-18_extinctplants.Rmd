@@ -1,0 +1,171 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+---
+title: "Avatar"
+author: "Sampanna Sharma"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(tidytuesdayR)
+library(stringr)
+library(scales)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-08-18")
+tt
+```
+
+## Assigning Data
+```{r}
+plants <- tt$plants
+action <- tt$actions
+threats <- tt$threats
+```
+
+## What are the bigger threats for plants 
+```{r}
+
+threats %>% 
+  filter(threatened == 1) %>% 
+  count(threat_type) %>% 
+  arrange(desc(n))
+
+```
+
+```{r}
+#plants %>% 
+#  separate(year_last_seen,c("discovered_year","extinct_year"),sep = "-",fill = "left") %>% 
+#  filter(extinct_year == "2020") %>% 
+#  View()
+
+```
+
+```{r}
+plants %>% 
+  select(-binomial_name,-country,-year_last_seen, -group, -red_list_category) %>% 
+  group_by(continent) %>% 
+  summarise_all(sum) %>% 
+  View()
+
+```
+
+```{r}
+#vline_df = data.frame(x = seq(12,72,12),xend=seq(12,72,12), y = -100, yend = 150)
+#threats_names_df <- data.frame(name = unique(threats$continent), x=seq(4,60,8),y = 200)
+
+#threats %>% 
+#  select(continent,threat_type,threatened) %>% 
+#  group_by(continent,threat_type) %>% 
+#  summarise(n = sum(threatened)) %>% 
+#  ungroup() %>% 
+#  mutate(r = 0 : (n() - 1)) %>% 
+#  ggplot() +
+#  geom_hline(yintercept = 0)+
+#  geom_vline(xintercept = 72)+
+#  geom_vline(xintercept = seq(11.5,71.5,12))+
+#  geom_segment(aes(x=r ,xend = r,y= 0,yend = n,color=threat_type),size = 1.5)+
+  #geom_point(aes(x=r,y=n))+
+  #geom_text(aes(x=r,y=0,label=threat_type))+
+#  ylim(-100,NA) +
+#  geom_hline(yintercept = 150)+
+  #geom_segment(data = vline_df,aes(x=x, y=y, xend=xend, yend=yend), alpha = 0.5)+
+#  coord_polar(clip="off")+
+#  theme_void()
+  #facet_wrap(~continent)
+```
+
+```{r}
+continents <- unique(threats$continent)
+colors <- c("#913CCD","#F15F74","#F76D3C","#F7D840","#98CB4A","#839098")
+p <- vector(mode = "list", length = length(continents))
+for(i in seq(1:length(continents))){
+  
+p[[i]] <- threats %>% 
+  select(continent,threat_type,threatened) %>% 
+  mutate(threat_ =case_when(threat_type == "Agriculture & Aquaculture" ~ "AA",
+                   threat_type == "Biological Resource Use" ~ "BRU",
+                   threat_type == "Natural System Modifications" ~ "NSM",
+                   threat_type == "Commercial Development" ~ "RCD",
+                   threat_type == "Energy Production & Mining" ~ "EPM",
+                   threat_type == "Invasive Species" ~ "ISGD",
+                   threat_type == "Human Intrusions" ~ "HID",
+                   threat_type == "Unknown" ~ "NA",
+                   threat_type == "Pollution" ~ "P",
+                   threat_type == "Climate Change" ~ "CC",
+                   threat_type == "Transportation Corridor" ~ "TS",
+                   threat_type == "Geological Events" ~ "GE")) %>% 
+  group_by(continent,threat_) %>% 
+  summarise(n = sum(threatened)) %>% 
+  ungroup() %>% 
+  group_by(continent) %>% 
+  mutate(count = sum(n)) %>% 
+  group_by(threat_) %>% 
+  mutate(per = round((n/count)*100,2)) %>% 
+  arrange(threat_) %>% 
+  ungroup() %>% 
+  filter(continent == continents[i]) %>% 
+  ggplot(aes(x=fct_reorder(threat_,threat_), y= per,
+             group = continent,fill=colors[i],color=colors[i]))+
+  geom_point(color=colors[i])+
+  geom_polygon(color=colors[i],fill=colors[i],alpha=0.5)+
+  geom_path(color=colors[i],alpha=0.5)+
+  ylim(-10,NA)+
+  annotate("text", x = 1, y = seq(0,30,10), label = paste(seq(0,30,10),"%",sep = ""), 
+           hjust = 1,alpha=0.6,size=8) +
+  coord_polar(direction = 1,start = -pi/12)+
+  theme_light()+
+  xlab(continents[i])+
+  theme(text = element_text(size = 30),
+        panel.border = element_blank(),
+        legend.position = "none",
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+}
+```
+
+
+```{r}
+#for(i in seq(1:length(continents))){
+#  pdf(file = paste(continents[i],".pdf",sep=""))
+#  p[i]
+#  dev.off()
+# savePlot(p[i],filename=i,type="png") 
+#}
+p[1]
+```
+```{r}
+p[2]
+```
+```{r}
+p[3]
+```
+```{r}
+p[4]
+```
+```{r}
+p[5]
+```
+```{r}
+p[6]
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

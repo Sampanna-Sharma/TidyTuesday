@@ -1,0 +1,20 @@
+---
+title: "Title"
+author: "Sampanna Sharma"
+date: "date"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("date")
+tt
+```

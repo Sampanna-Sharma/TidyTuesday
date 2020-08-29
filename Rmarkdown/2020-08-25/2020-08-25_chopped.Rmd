@@ -1,0 +1,81 @@
+---
+title: "Chopped"
+author: "Sampanna Sharma"
+date: "2020-08-27"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+library(ggraph)
+library(tidygraph)
+library(widyr)
+library(tidystringdist)
+library(purrr)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-08-25")
+tt
+```
+
+## Cleaning
+```{r}
+chopped <- tt$chopped
+chopped %>% View()
+```
+
+```{r}
+fuzzy_names <- chopped %>% 
+  select(judge1:judge3) %>% 
+  #select(series_episode,episode_rating,judge1:judge3) %>% 
+  gather("judge","judge_name",judge1:judge3) %>% 
+  filter(!is.na(judge_name)) %>% 
+  distinct(judge_name) %>% 
+  tidy_comb_all(judge_name) %>% 
+  tidy_stringdist(method = "jw") %>% 
+  arrange(jw) %>% 
+  slice(1:9) %>% 
+  select(-jw) %>% 
+  as.list()
+
+value <- fuzzy_names$V1
+key <- fuzzy_names$V2
+
+fuzzy_names_replacer <- function(name){
+  if(name %in% key){
+    return(value[name == key][1])
+  }
+  else{
+    return(name)
+  }
+}
+
+
+chopped %>% 
+  select(series_episode,episode_rating,judge1:judge3) %>% 
+  gather("judge","judge_name",judge1:judge3) %>% 
+  filter(!is.na(judge_name)) %>% 
+  mutate(judge_name = map_chr(judge_name,fuzzy_names_replacer)) %>% 
+  pairwise_count(judge_name,series_episode) %>% 
+  arrange(item1,item2) %>% 
+  filter(n>1) %>% 
+  as_tbl_graph() %>% 
+  ggraph(layout = 'linear', circular = TRUE) + 
+  geom_edge_arc(aes(alpha = n,edge_width=n),show.legend = FALSE,color = "#86300F")+
+  geom_point(aes(x=x, y=y),color = "#684C2D")+
+  geom_node_text(aes(label = name),size=5,color = "#684C2D")+
+  scale_edge_width(range = c(0.2,3))+
+  scale_edge_alpha(range = c(0.2,1))+
+  coord_fixed()+
+  #labs(title = "Network of Judges appeared on Chooped tv series",hjust=0.5,color = "#684C2D")+
+  theme_graph(background = "#FDB73B")
+
+```
+
+

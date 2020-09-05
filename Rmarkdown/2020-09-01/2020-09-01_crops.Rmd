@@ -1,0 +1,185 @@
+---
+title: "Title"
+author: "Sampanna Sharma"
+date: "2020-09-02"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+library(calecopal)
+library(geofacet)
+library(rnaturalearth)
+library(ggflags)
+library(scales)
+library(ggthemes)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-09-01")
+tt
+```
+
+```{r}
+arable_land <- tt$arable_land_pin
+cereal_yeild_vs_fertilizer <- tt$cereal_crop_yield_vs_fertilizer_application
+cerel_yield_vs_tractor <- tt$cereal_yields_vs_tractor_inputs_in_agriculture
+crops_yeild <- tt$key_crop_yields
+land_vs_yield <- tt$land_use_vs_yield_change_in_cereal_production
+saarc_countries = c("Afghanistan", "Bangladesh", "Bhutan", "India", "Maldives", "Nepal", "Pakistan", "Sri Lanka")
+```
+
+```{r}
+
+arable_land %>%
+  filter(Entity %in% saarc_countries) %>% 
+  select(Entity,Year,`Arable land needed to produce a fixed quantity of crops ((1.0 = 1961))`) %>% 
+  ggplot(aes(x=Year, y = `Arable land needed to produce a fixed quantity of crops ((1.0 = 1961))`,
+             ))+
+  geom_line()+
+  facet_wrap(~Entity,ncol = 4)
+```
+
+```{r}
+cerel_yield_vs_tractor %>% 
+  select(-Code,-`Total population (Gapminder)`) %>% 
+  filter(Entity %in% saarc_countries, !is.na(`Tractors per 100 sq km arable land`)) %>%
+  ggplot(aes(x=Year,y = `Tractors per 100 sq km arable land`,group=Entity))+
+  geom_line()+
+  facet_wrap(~Entity)
+```
+
+```{r}
+land_vs_yield %>% 
+  select(-`Total population (Gapminder)`,-Code) %>% 
+  filter(Entity %in% saarc_countries, 
+         !is.na(`Change to land area used for cereal production since 1961`)) %>% 
+  ggplot(aes(x = Year, y = `Change to land area used for cereal production since 1961`,
+             group= Entity))+
+  geom_line()+
+  facet_wrap(~Entity)
+```
+
+```{r}
+#cols <- c("#F3D2B3", "#F2B8A2", "#F38C8D", "#5E9DB8", "#ADA296", "#779EAF","#2C5F72","#000000")
+
+mygrid <- data.frame(
+  row = c(1, 2, 2, 2, 3, 3, 4, 4),
+  col = c(1, 2, 4, 5, 3, 5, 2, 4),
+  code = c("AFG", "PAK", "NPL", "BH", "IN", "BG", "ML", "SL"),
+  name = c("Afghanistan", "Pakistan", "Nepal", "Bhutan", "India", "Bangladesh", "Maldives", "Sri Lanka"),
+  stringsAsFactors = FALSE
+)
+geofacet::grid_preview(mygrid)
+
+crops_yeild %>% 
+  filter(Entity %in% saarc_countries) %>% 
+  gather(key = "crops", value = "yield",
+         `Wheat (tonnes per hectare)` :`Bananas (tonnes per hectare)`) %>% 
+  filter(!is.na(yield)) %>% 
+  mutate(crops = str_remove_all(crops, " \\(tonnes per hectare\\)")) %>% 
+  ggplot(aes(x = Year, y = yield,group = crops,fill = crops))+
+  geom_area()+
+  scale_fill_manual(name = "crop(tonnes per hectare)", 
+                    values = cal_palette("bigsur",n=11,type = "continuous"))+
+  facet_geo(~Entity,grid = mygrid,scales = "free")+
+  theme_light()
+```
+
+```{r}
+crops_yeild %>% 
+  filter(Entity == "Nepal") %>% 
+  gather(key = "crops", value = "yield",
+         `Wheat (tonnes per hectare)` :`Bananas (tonnes per hectare)`) %>% 
+  filter(!is.na(yield)) %>% 
+  mutate(crops = str_remove_all(crops, " \\(tonnes per hectare\\)")) %>% 
+  ggplot(aes(x = Year, y = yield,group = crops,fill = crops))+
+  geom_area(color="#000F0F")+
+  scale_fill_manual(name = "crop(tonnes per hectare)", 
+                    values = cal_palette("bigsur",n=8,type = "continuous"))+
+  theme_light()
+```
+
+```{r}
+saarc_map <- ne_countries(country = saarc_countries,scale = "medium",returnclass = "sf")
+
+crops_yeild %>% 
+  filter(Entity %in% saarc_countries, Year == 2018) %>% 
+  select(-`Cassava (tonnes per hectare)`,-`Cocoa beans (tonnes per hectare)`) %>% 
+  gather(key = "crops", value = "yield(tonnes per hectare)",
+         `Wheat (tonnes per hectare)` :`Bananas (tonnes per hectare)`) %>% 
+  filter(!is.na(`yield(tonnes per hectare)`)) %>% 
+  mutate(crops = str_remove_all(crops, " \\(tonnes per hectare\\)")) %>% 
+  group_by(crops) %>% 
+  mutate(yield_pct =(`yield(tonnes per hectare)` / sum(`yield(tonnes per hectare)`))*100) %>%
+  left_join(saarc_map, by = c("Entity" = "name_sort")) %>% 
+  ggplot(aes(fill = crops,alpha = yield_pct, geometry = geometry), color = NA)+
+  geom_sf()+
+  scale_alpha(range = c(0.05,1))+
+  facet_wrap( ~ crops, ncol = 3)+
+  guides(fill = FALSE)+
+  theme_void()
+```
+
+```{r}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+asian_countries <- world %>% filter(continent == "Asia") %>% pull(name)
+
+data <- crops_yeild %>% 
+  filter(Entity %in% asian_countries) %>% 
+  gather(key = "crops", value = "yield",
+         `Wheat (tonnes per hectare)` :`Bananas (tonnes per hectare)`) %>% 
+  filter(!is.na(yield)) %>% 
+  mutate(crops = str_remove_all(crops, " \\(tonnes per hectare\\)")) %>% 
+  filter(!crops %in% c("Peas","Cocoa beans", "Cassava"))
+
+data %>% 
+  ggplot(aes(x = Year, y = yield,group = Entity))+
+  geom_line(color = "gray")+
+  geom_line(data = data %>% filter(Entity == "Nepal"),color = "red")+
+  facet_wrap(~crops,scales = "free_y",ncol = 4)+
+  theme_light()
+```
+
+```{r}
+saarc <- world %>% 
+  filter(admin %in% saarc_countries)%>% data.frame() %>% 
+  select(name,iso_a2) %>% 
+  mutate(iso_a2 = str_to_lower(iso_a2))
+
+crops_yeild %>% 
+  inner_join(saarc, by = c("Entity" = "name")) %>% 
+  gather(key = "crops", value = "yield",
+         `Wheat (tonnes per hectare)` :`Bananas (tonnes per hectare)`) %>% 
+  filter(!is.na(yield)) %>% 
+  mutate(crops = str_remove_all(crops, " \\(tonnes per hectare\\)")) %>% 
+  filter(!crops %in% c("Cocoa beans", "Cassava")) %>% 
+  group_by(Entity,crops) %>% 
+  arrange(Year) %>% 
+  filter(row_number()==1 | row_number()==n()) %>% 
+  ungroup() %>% 
+  ggplot(aes(x=Year, y = yield,group=Entity,color = Entity, country = iso_a2)) + 
+  geom_line(size=1)+
+  geom_flag(position = 'jitter')+
+  guides(color = FALSE)+
+  facet_wrap(~crops, scales = "free_y",ncol = 3)+
+  scale_colour_hc("darkunica")+
+  labs(title = "Crops Yield in Saarc Countries (1961-2018)",
+       subtitle = "Yield(tonnes per hectare)",
+       caption = "Viz: @Kopitesam | Source: Our World in Data")+
+  theme_fivethirtyeight(base_size = 18)
+```
+
+
+
+
+
+
+
+
+

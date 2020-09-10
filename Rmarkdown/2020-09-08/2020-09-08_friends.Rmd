@@ -1,0 +1,104 @@
+---
+title: "Title"
+author: "Sampanna Sharma"
+date: "2020-09-08"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+library(stringr)
+library(ggthemes)
+library(ggrepel)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-09-08")
+tt
+```
+
+```{r}
+fr <- tt$friends
+fr_info <- tt$friends_info
+fr_emtions <- tt$friends_emotions
+```
+
+```{r}
+fr_info %>%
+  mutate(season = as_factor(season)) %>% 
+  ggplot(aes(x=season, y=imdb_rating, group=season, color = season))+
+  geom_boxplot()+
+  geom_jitter()+
+  guides(color = FALSE)+
+  theme_light()
+
+```
+
+```{r}
+main_charactors <- fr %>% 
+                    count(speaker) %>% 
+                    arrange(desc(n)) %>% 
+                    slice(1:6) %>% 
+                    pull(speaker)
+
+fr %>% 
+  filter(speaker %in% main_charactors) %>%
+  group_by(speaker) %>% 
+  count(season,episode) %>% 
+  ungroup() %>% 
+  ggplot(aes(x=episode,y=n, color = speaker))+
+  geom_line()+
+  ylab("Number of dialogue in a episode")+
+  facet_wrap(~season)
+```
+
+```{r}
+
+fr_palette <- c("#3F9DD4","#008F48","#F74035","#9787CD","#F6D400","#941205","#B7B7B7",
+                "#FFF580","#00009E","#75891C") 
+
+data <- fr_info %>% 
+  mutate(season = as_factor(season)) %>% 
+  group_by(season) %>% 
+  mutate(avg_seasonal_rating = mean(imdb_rating)) %>%
+  ungroup() %>% 
+  mutate(episode_number = row_number()) 
+
+data %>% 
+  ggplot(aes(x=episode_number, y=imdb_rating, color = season))+
+  geom_segment(aes(x=episode_number,xend=episode_number,y=avg_seasonal_rating,yend=imdb_rating),
+               alpha=0.8)+
+  geom_line(aes(y=avg_seasonal_rating),color="#AFAFAF")+
+  geom_line(aes(x=episode_number,y=avg_seasonal_rating,
+                group = season, color = season),size=2,alpha=0.7)+
+  geom_point(size=3)+
+  geom_text_repel(data = data %>% filter(imdb_rating >=9.5 | imdb_rating <=7.5),
+                  mapping = aes(x=episode_number, y=imdb_rating, label=imdb_rating)
+                  ,color = "#FFFFFF")+
+  geom_text_repel(data = data %>% filter(imdb_rating >=9.5 | imdb_rating <=7.5),
+                  mapping = aes(x=episode_number, y=imdb_rating, label=title),
+                  arrow = arrow(length = unit(0.03, "npc"), type = "closed", ends = "first"),
+                  ylim = c(7,10),force = 10,color = "#FFFFFF")+
+  scale_color_manual(values = fr_palette)+
+  guides(color = FALSE)+
+  labs(title = element_text("The One With All The Ratings",))+
+  theme_fivethirtyeight()+
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.major.y = element_line(colour = "#5F5F5F"),
+        panel.grid.minor.y = element_line(colour = "#5F5F5F"),
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        text=element_text(color = "#FFFFFF",family="friends",size = 20),
+        panel.background = element_rect(fill = "#3F3F3F"),
+        plot.background = element_rect(fill = "#3F3F3F"))
+    
+```
+
+
+

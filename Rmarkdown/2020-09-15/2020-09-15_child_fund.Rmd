@@ -1,0 +1,67 @@
+---
+title: "Title"
+author: "Sampanna Sharma"
+date: "2020-09-15"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+library(geofacet)
+library(ggthemes)
+library(purrr)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-09-15")
+tt
+states_abbr <- read_csv(here::here("Rmarkdown","2020-09-15","us_states_abb.csv")) %>% 
+  select(state = title_case, ap_style)
+```
+
+```{r}
+fund <- tt$kids
+```
+
+```{r}
+lib_fund <- fund %>% 
+  select(-raw,-inf_adj) %>% 
+  filter(variable == "lib") %>% 
+  mutate(inf_adj_perchild = round(1000 * inf_adj_perchild)) %>% 
+  spread(year,inf_adj_perchild) %>% 
+  mutate(change = `2016` - `1997`) %>% 
+  gather(key='year',value = "inf_adj_perchild",`1997`:`2016`)
+
+us_state_grid_cutom <- us_state_grid1 %>% 
+  left_join(states_abbr,by = c("name" = "state")) %>% 
+  mutate(code = ap_style) %>% 
+  select(-ap_style)
+
+
+lib_fund %>% 
+  ggplot(aes(x=year,y=inf_adj_perchild,group = state, color = change)) + 
+  geom_line(size=1.2) +
+  geom_text(data = lib_fund %>% filter(year %in% c("1997","2016")),
+            mapping = aes(x=year,y=inf_adj_perchild-90,label = inf_adj_perchild),
+            , size = 4.5)+
+  facet_geo(~state, grid = us_state_grid_cutom,label = "code") +
+  coord_cartesian(clip = "off", expand = FALSE) +
+  labs(title = "Public Spending on Libraries by State in years from 1997 to 2016",
+       subtitle = "Dollars spent per child, adjusted for inflation")+
+  guides(color = FALSE)+
+  scale_color_gradient2(low = "red",mid="lightblue",high = "blue",midpoint=30)+
+  theme_void()+
+  theme(
+    plot.background = element_rect(fill = "grey50", color = NA),
+    plot.margin = margin(20, 30, 15, 30),
+    panel.spacing.x = unit(1.5, "lines"),
+    panel.spacing.y = unit(1, "lines"),
+    strip.text = element_text(size = 12),
+    )
+```
+

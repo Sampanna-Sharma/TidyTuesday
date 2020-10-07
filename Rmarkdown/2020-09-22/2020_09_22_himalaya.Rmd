@@ -1,0 +1,195 @@
+---
+title: "Title"
+author: "Sampanna Sharma"
+date: "2020-09-22"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library 
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+library(waffle)
+library(lubridate)
+library(patchwork)
+library(ggbeeswarm)
+library(tidylog)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-09-22")
+tt
+```
+
+
+```{r}
+peaks <- tt$peaks
+member <- tt$members
+ept <-tt$expeditions
+```
+
+```{r}
+member %>% 
+  count(member_id) %>% 
+  arrange(desc(n))
+
+#member id doesnot refers to actual person
+```
+
+```{r}
+ept %>% 
+  count(termination_reason) %>% 
+  arrange(desc(n)) %>% 
+  View( )
+```
+
+```{r}
+# 
+# ept %>% 
+#   group_by(year) %>% 
+#   count(termination_reason) %>%
+#   ungroup() %>% 
+#   ggplot(aes(fill=termination_reason,values = n)) +
+#   geom_waffle(color = "white", size = .25, n_rows = 10, flip = TRUE)+
+#   facet_wrap(~year, nrow = 1, strip.position = "bottom") +
+#   scale_x_discrete()+
+#   scale_y_continuous(labels = function(x) x * 10, # make this multiplyer the same as n_rows
+#                      expand = c(0,0)) +
+#   coord_equal() +
+#   theme_minimal() +
+#   theme(panel.grid = element_blank(), axis.ticks.y = element_line()) +
+#   guides(fill = guide_legend(reverse = TRUE))
+
+```
+
+```{r}
+everest_df <- ept %>% filter(peak_name == "Everest")
+everest_df  %>% 
+  ggplot(aes(year,fill = oxygen_used))+
+  geom_bar()
+
+everest_df  %>% 
+  mutate(mem_death = member_deaths>0) %>% 
+  ggplot(aes(year,fill = mem_death))+
+  geom_bar()
+
+everest_df  %>% 
+  ggplot(aes(year,fill = termination_reason))+
+  geom_bar()+
+  scale_x_continuous()+
+  scale_y_continuous()
+```
+
+```{r}
+ept %>% 
+  filter(!is.na(basecamp_date),
+         !is.na(highpoint_date)) %>% 
+  filter(peak_name == "Everest",
+         termination_reason == "Success (main peak)") %>% 
+  mutate(base_to_peak = highpoint_date - basecamp_date) %>%
+  ggplot(aes(year,base_to_peak,group = year))+
+  geom_boxplot()
+
+```
+
+```{r}
+member %>% 
+  filter(hired == TRUE) %>% 
+  count(citizenship,expedition_role) %>% 
+  View()
+```
+
+```{r}
+member %>% 
+  filter(peak_name == "Everest",
+         !is.na(injury_height_metres),
+         !is.na(injury_type)) %>%
+  mutate(injury_type = fct_lump(injury_type,8)) %>% 
+  ggplot(aes(x = fct_reorder(injury_type,injury_height_metres,.fun = median),
+             y = injury_height_metres,
+             color = injury_type)) +
+  geom_boxplot(aes(alpha=0.5),fill = NA)+
+  geom_jitter(alpha = 0.2)+
+  theme_minimal()
+```
+
+```{r}
+dats <- member %>% 
+  filter(peak_name == "Everest",
+         !is.na(death_height_metres),
+         !is.na(death_cause))
+  #mutate(injury_type = fct_lump(death_cause,8)) %>% 
+dats %>%  ggplot(aes(x = fct_reorder(death_cause,death_height_metres,.fun = median),
+             y = death_height_metres,
+             color = death_cause)) +
+          geom_hline(yintercept = median(dats$death_height_metres),linetype="dotted")+
+          geom_beeswarm(size=2.5,alpha=0.8)+
+          theme_minimal()+
+          guides(color = FALSE)
+```
+
+
+```{r}
+member %>% 
+  filter(died == TRUE) %>%  
+  mutate(death_cause = fct_lump(death_cause,9)) %>% 
+  count(hired,death_cause) %>%
+  group_by(death_cause) %>% 
+  mutate(freq = round(n/sum(n),digits = 2)*100) %>% 
+  #filter(death_cause == "Avalanche") %>% 
+  ggplot(aes(fill=hired,values=freq))+
+  geom_waffle(color = "white", size = 0.5, n_rows = 10, flip = TRUE)+
+  #geom_text(aes(x = as.integer(hired) *20 ,y = n%/%10,label = n)) +
+  facet_wrap(~death_cause, ncol = 3, strip.position = "bottom") +
+  scale_x_discrete()+
+  scale_y_continuous(labels = function(x) x * 10, # make this multiplyer the same as n_rows
+                     expand = c(0,0)) +
+  coord_equal() +
+  guides(fill = guide_legend(reverse = TRUE))+
+  theme_void() +
+  theme(legend.position="top")
+```
+
+```{r}
+waffle_plt <- function(type,nrow){
+  p <- member %>% 
+    filter(died == TRUE) %>%  
+    count(hired,death_cause) %>%
+    group_by(death_cause) %>% 
+    filter(death_cause == type) %>% 
+    ggplot(aes(fill=hired,values=n))+
+    geom_waffle(color = "white", size = 0.5, n_rows = nrow, flip = FALSE)+
+    #geom_text(aes(x = as.integer(hired) *20 ,y = n%/%10,label = n)) +
+    facet_wrap(~death_cause, ncol = 1) +
+    scale_x_discrete()+
+    scale_y_continuous(labels = function(x) x * nrow,expand = c(0,0)) +
+    coord_equal() +
+    guides(fill = FALSE)+
+    theme_void() 
+  return(p)
+}
+```
+
+```{r}
+un <- waffle_plt("Unknown",nrow = 1)
+ic <- waffle_plt("Icefall collapse",nrow = 1)
+fr <- waffle_plt("Falling rock / ice",nrow = 1)
+cr <- waffle_plt("Crevasse",nrow = 1)
+ot <- waffle_plt("Other",nrow = 2)
+eh <- waffle_plt("Exhaustion",nrow = 2)
+ex <- waffle_plt("Exposure / frostbite",nrow = 2)
+dis <- waffle_plt("Disappearance (unexplained)",nrow = 2)
+il <- waffle_plt("Illness (non-AMS)",nrow = 2)
+am <- waffle_plt("AMS",nrow = 3)
+fa <- waffle_plt("Fall",nrow = 8)
+av <- waffle_plt("Avalanche",nrow = 8)
+
+p <- un/ic/fr/cr/ot/eh/ex/dis/il/am/fa/av
+p + guides(fill = guide_legend(reverse = TRUE))+ 
+    theme(legend.position="bottom")
+```
+
+  

@@ -64,20 +64,6 @@ bl %>%
   rbind(tl %>% select("song_name" = title,artist,lyrics,album))
 ```
 
-#Sentiment of songs across time. (TODO :too manys songs, need to take popular songs)
-```{r}
-afinn <- get_sentiments(lexicon = "afinn")
-
-## too many songs
-tl %>% 
-  unnest_tokens(word,lyrics) %>% 
-  inner_join(afinn) %>% 
-  group_by(title) %>% 
-  mutate(num = 1:n()) %>% 
-  ggplot(aes(x=num,y=value))+
-  geom_line()+
-  facet_wrap(~title)
-```
 
 # Distinct words across albumns of taylor swift.
 ```{r}
@@ -96,6 +82,8 @@ tl %>%
 
 #violine plot of net setiment of taylor swift songs.
 ```{r}
+afinn <- get_sentiments(lexicon = "afinn")
+
 tl_summary<-
 tl %>% 
   unnest_tokens(word,lyrics) %>%
@@ -118,43 +106,6 @@ tl_summary %>%
                            aes(label = title),nudge_x = -0.3)
 ```
 
-# 10 dimension of sentiment reduced to 2 dimension to find similar sentiment songs between taylor and beyonce.
-```{r}
-bing_sent <- get_sentiments(lexicon = "nrc")
-tb_sent <-
-tl_bl %>% 
-  unnest_tokens(word,lyrics) %>% 
-  anti_join(stop_words) %>% 
-  left_join(bing_sent) %>% 
-  filter(!is.na(sentiment)) %>% 
-  group_by(artist,album,song_name,sentiment) %>% 
-  summarise(n = n()) %>% 
-  ungroup(sentiment) %>% 
-  mutate(pct = n/sum(n)*100) %>% 
-  ungroup() %>% 
-  select(-n) %>% 
-  pivot_wider(names_from = sentiment,values_from=pct,values_fill=0)
-      
-tb_recp <- recipe(~.,data = tb_sent) %>% 
-  update_role(artist,album,song_name,new_role = "id") %>% 
-  step_normalize(all_predictors()) %>% 
-  step_pca(all_predictors())
-
-tb_recp
-
-tb_prep <- prep(tb_recp)
-
-```
-
-
-```{r}
-juice(tb_prep) %>% 
-  ggplot(aes(PC1,PC2,color = artist,label=song_name))+
-  geom_point()+
-  geom_text(check_overlap = TRUE,hjust=1,vjust=-1)+
-  theme_light()
-```
-
 ```{r}
 library(spotifyr)
 #Sys.setenv(SPOTIFY_CLIENT_ID = 'xxxxxxxxxxxxxxxxxxxxx')
@@ -163,25 +114,37 @@ library(spotifyr)
 access_token <- get_spotify_access_token()
 
 ## https://juliasilge.com/blog/best-hip-hop/
-
+  
 pull_id <- function(query) {
-  search_spotify(query, "track") %>%
+  
+  res <- search_spotify(query, "track") %>%
     arrange(-popularity) %>%
-    filter(row_number() == 1) %>%
+    filter(row_number() == 1)
+  id<-res %>% 
     pull(id)
+  pop <- res %>% 
+    pull(popularity)
+  return(c(id,pop))
 }
 
 ids <- tl_bl %>%
   mutate(
-    search_query = paste(song_name, artist),
+    search_query = paste(artist, song_name),
     search_query = str_to_lower(search_query),
-    search_query = str_remove(search_query, "ft.*$")
+    search_query = str_remove(search_query, regex("\\(ft.*\\)$")),
+    search_query = str_trim(search_query)
   ) %>%
-  mutate(id = map_chr(search_query, possibly(pull_id, NA_character_)))
+  mutate(id_pop = map(search_query, possibly(pull_id, NA_character_)))
 
+ids <- 
 ids %>%
-  select(song_name, artist, id) %>% 
-  View()
+  unnest(id_pop) %>% 
+  group_by(song_name) %>% 
+  mutate(col=seq_along(song_name)) %>% #add a column indicator
+  spread(key=col, value=id_pop) %>% 
+  rename("id" = `1`,
+         "popularity" = `2`)+
+  ungroup()
 
 features <- ids %>%
   mutate(id_group = row_number() %/% 80) %>%
@@ -195,66 +158,16 @@ tlbl_df <- ids %>%
   bind_cols(features %>%
     select(audio_features) %>%
     unnest(audio_features)) %>% 
-  select(song_name, artist,album, lyrics, danceability:tempo) %>%
+  select(song_name, artist,album, lyrics,popularity, danceability:tempo) %>%
   na.omit()
-
 ```
-```{r}
-library(Rtsne)
 
-tlbl_df_id <- tlbl_df[,1:4]
-tlbl_df_feat <- tlbl_df[,5:15]
-
-tsne_out <- 
-tlbl_df_feat %>% 
-  as.matrix() %>% 
-  normalize_input() %>% 
-  Rtsne(perplexity = 30,check_duplicates = FALSE)
-
-tsne_tlbl <- 
-  cbind(as_tibble(tsne_out$Y),tlbl_df_id)
-  
-```
 #viz
-```{r}
-closer_circ <- function(pnts,rad,same_art){
-  res <- smacpod::circles.intersect(pnts,rad)
-  res <- res & (upper.tri(res) | lower.tri(res))
-  #throwing closer songs of same artist
-  sam <- matrix(outer(same_art,same_art,"xor"),nrow=length(same_art))
-  
-  res <- apply(res & sam,1,any)
-  return(res)
-}
-#only plot song which are close proximity to another song.
-tsne_tlbl_filtered <- 
-  tsne_tlbl %>% 
-  mutate(V1 = (V1-min(V1))/(max(V1) - min(V1)),
-         V2= (V2-min(V2))/(max(V2) - min(V2)))
 
-tsne_tlbl_filtered <- 
-  tsne_tlbl_filtered %>% 
-  mutate(filt = closer_circ(as.matrix(tsne_tlbl_filtered[,1:2]),
-                            rad=rep(0.01,count(tsne_tlbl_filtered)),
-                            same_art = (artist == "Taylor Swift")))
-  
-  
-
-tsne_tlbl_filtered %>% 
-  filter(filt) %>% 
-  ggplot(aes(V1,V2,color=artist,label=song_name))+
-  geom_point()+
-  ggrepel::geom_text_repel()+
-  labs(title = "Which Taylor Swift & Beyonce music sound simmilar?",
-       subtitle = "Based on: danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence and tempo")+
-  theme_light()
-          #theme_void()
-```
 
 ```{r}
-     
 tb_recp <- recipe(~.,data = tlbl_df) %>% 
-  update_role(artist,album,song_name,lyrics,new_role = "id") %>% 
+  update_role(artist,album,song_name,lyrics,popularity,new_role = "id") %>% 
   step_normalize(all_predictors()) %>% 
   step_pca(all_predictors())
 
@@ -275,23 +188,26 @@ tidied_pca %>%
   facet_wrap(~ component, scales = "free_y")
 ```
   
-
-
 ```{r}
 library(hrbrthemes)
 
 juice(tb_prep) %>% 
-  filter(song_name != "Love Drought",
-         artist == "Beyoncé") %>%
+  mutate(popularity = as.numeric(as.character(popularity))) %>% 
+  filter(artist == "Taylor Swift") %>%
+  arrange(popularity) %>%
+  top_n(40) %>% 
   ggplot(aes(PC3,PC1,color = album,label=song_name))+
-  geom_point(alpha=0.5,size=2)+
-  geom_text(check_overlap = TRUE,hjust=1,vjust=-1)+
+  geom_point(alpha=0.8,size=2)+
+  ggrepel::geom_text_repel(fontface=2)+
   annotate("text",x=0,y=5,label="Energy/Loud",size=8)+
-  annotate("text",x=0,y=-8,label="Acoustic",size=8)+
+  annotate("text",x=0,y=-5,label="Acoustic",size=8)+
   annotate("text",x=2.7,y=0,label="Dance/Joy",angle=-90,size=8)+
-  annotate("text",x=-4.5,y=0,label="Tempo/Instrumental",angle=90,size=8)+
+  annotate("text",x=-2.5,y=0,label="Tempo/Instrumental",angle=90,size=8)+
   scale_color_ipsum() +
-  theme_ipsum_ps(grid = "yx")
+  labs(title = "Taylor Swift's Music",
+       subtitle = "Audio Feature based on Spotify",
+       color = "Album")+
+  theme_ipsum_ps(grid = "YX")
 ```
 
 

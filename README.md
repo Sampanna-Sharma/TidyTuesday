@@ -1,7 +1,7 @@
 ## TidyTuesday Contributions
 
 ### [2020/09/29](https://github.com/Sampanna-Sharma/TidyTuesday/tree/github-master/Rmarkdown/2020-09-29) Taylor Swift 
-![](./Rmarkdown/2020-09-15/taylorswift.png)
+![](./Rmarkdown/2020-09-29/taylorswift.png)
 
 ### [2020/09/15](https://github.com/Sampanna-Sharma/TidyTuesday/tree/github-master/Rmarkdown/2020-09-15) State Library Funding 
 ![](./Rmarkdown/2020-09-15/library_funding.png)

@@ -1,5 +1,8 @@
 ## TidyTuesday Contributions
 
+### [2020/10/06](https://github.com/Sampanna-Sharma/TidyTuesday/tree/github-master/Rmarkdown/2020-10-06) Taylor Swift 
+![](./Rmarkdown/2020-10-06/NCAA.png)
+
 ### [2020/09/29](https://github.com/Sampanna-Sharma/TidyTuesday/tree/github-master/Rmarkdown/2020-09-29) Taylor Swift 
 ![](./Rmarkdown/2020-09-29/taylorswift.png)
 

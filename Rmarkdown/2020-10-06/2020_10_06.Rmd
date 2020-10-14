@@ -1,0 +1,61 @@
+---
+title: "NCAA"
+author: "Sampanna Sharma"
+date: "2020-10-06"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+## Required Library
+```{r results = 'hide'}
+library(tidyverse)
+library(tidytuesdayR)
+```
+
+## Importing Data
+```{r results = 'hide'}
+tt <- tt_load("2020-10-06")
+tt
+```
+
+### Quit Viz dont know much about basketball.
+```{r}
+tourn <- tt$tournament
+```
+
+```{r}
+tourn %>% 
+  count(tourney_finish)
+```
+
+### Inspiration of David Robinsion screencast.
+```{r}
+library(hrbrthemes)
+t_f <- c("OR","1st","2nd","RSF","RF","NSF","N2nd","Champ")
+p <- 
+tourn %>% 
+  mutate(tourney_finish = fct_relevel(tourney_finish,t_f)) %>% 
+  filter(tourney_finish != "OR") %>% 
+  count(seed,tourney_finish) %>% 
+  group_by(seed) %>% 
+  mutate(pct=round(n/sum(n),3)) %>% 
+  ggplot(aes(x=seed,y=tourney_finish, fill = pct))+
+  geom_tile()+
+  geom_text(aes(label=scales::percent(pct,accuracy = 0.01)),color="grey98",fontface=1)+
+  scale_x_continuous(expand=c(0,0),breaks = c(1:16))+
+  scale_fill_gradient2(mid="#A9809D",high = "#7B3C69",low="#D3BECD",midpoint = 0.5)+
+  guides(fill = FALSE)+
+  labs(title = "NCAA Women's Basketball Tournament.",
+       subtitle = "When a team is assigned a seed, where do they finish in the tournament ?",
+       x = "Assigned Seed",
+       y = "Tournament Finish (Higher the better)",
+       caption = "viz: @kopitesam | source: FiveThirtyEight")+
+  theme_ipsum_ps(grid="XY")
+```
+
+```{r}
+ggsave("NCAA.png",plot=p)
+```
+
+
